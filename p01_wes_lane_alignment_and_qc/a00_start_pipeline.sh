@@ -39,6 +39,7 @@ echo "Started lane's samples list (may be used in the merging step later)" >> "$
 # Submit the first step to the queue
 slurm_time="--time=${time_copy_in}"
 slurm_account="--account=${account_copy_in}"
+
 sbatch "${slurm_time}" "${slurm_account}" \
   "${scripts_folder}/s01_copy_and_dispatch.sb.sh" \
   "${job_file}" \

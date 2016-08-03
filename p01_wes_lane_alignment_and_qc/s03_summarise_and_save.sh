@@ -3,7 +3,7 @@ set -e
 
 # s03_summarise_and_save.sh
 # Plot summary metrics and save results of wes lane alignment and QC
-# Alexey Larionov, 27Jul2016
+# Alexey Larionov, 30Jul2016
 
 # Notes:
 # Tested with gnuplot 5.0 (may not work with old gnuplot versions)
@@ -26,7 +26,7 @@ echo "Making summary plots and saving results for wes lane alignment and QC"
 echo "Started: $(date +%d%b%Y_%H:%M:%S)"
 echo ""
 
-source "${scripts_folder}/a02_read_config.sh"
+source "${scripts_folder}/a01_read_config.sh"
 echo "Read settings"
 echo ""
 
@@ -157,124 +157,152 @@ echo "Made summary table and plot for picard mkdup duplication rates"
 #              Picard mkdup histograms              #
 # ------------------------------------------------- #
 
+# For PE data
+if [ "${data_type}" == "pe" ]
+then
 
-# --------------- Make summary table ---------------#
-
-# Make header
-mkdup_histograms="${picard_summary_folder}/r02_picard_mkdup_histograms.txt"
-header="x"
-for sample in ${samples}
-do
-  header=$(echo -e "${header}\t${sample}")
-done
-
-echo -e "${header}" > "${mkdup_histograms}" 
-
-# Collect data
-for x in {1..10}
-do
+  # --------------- Make summary table ---------------#
   
-  # Row name
-  stats="x${x}"
-  
-  # For each sample
+  # Make header
+  mkdup_histograms="${picard_summary_folder}/r02_picard_mkdup_histograms.txt"
+  header="x"
   for sample in ${samples}
   do
+    header=$(echo -e "${header}\t${sample}")
+  done
   
-    # Stats file name
-    stats_file="${picard_mkdup_folder}/${sample}_mkdup.txt"
+  echo -e "${header}" > "${mkdup_histograms}" 
+  
+  # Collect data
+  for x in {1..10}
+  do
     
-    # Get stats
-    stat=$(awk -v s="${x}.0" '$1==s {print $2}' "${stats_file}")
-    stats=$(echo -e "${stats}\t${stat}")
+    # Row name
+    stats="x${x}"
     
-  done # next sample
-
-  # Add stats to the file
-  echo -e "${stats}" >> "${mkdup_histograms}"
+    # For each sample
+    for sample in ${samples}
+    do
     
-done
+      # Stats file name
+      stats_file="${picard_mkdup_folder}/${sample}_mkdup.txt"
+      
+      # Get stats
+      stat=$(awk -v s="${x}.0" '$1==s {print $2}' "${stats_file}")
+      stats=$(echo -e "${stats}\t${stat}")
+      
+    done # next sample
+  
+    # Add stats to the file
+    echo -e "${stats}" >> "${mkdup_histograms}"
+      
+  done
+  
+  # ------------------- Make plot ------------------- #
+  
+  # Parameters
+  plot_file="${picard_summary_folder}/r02_picard_mkdup_histograms.png"
+  title="${project} ${library} ${lane}: mkdup histograms"
+  ylabel="Multiples of output"
+  xlabel="Multiples of sequencing"
+  
+  # Change new lines to spaces (required for gnuplot)
+  samples_list=$(echo ${samples})
+  
+  # Gnuplot script
+  gpl_script='
+  set terminal png font "'"${LiberationSansRegularTTF}"'" size 800,600 noenhanced
+  set xtics rotate out
+  unset key
+  set title "'"${title}"'"
+  set ylabel "'"${ylabel}"'"
+  set xlabel "'"${xlabel}"'"
+  set output "'"${plot_file}"'"
+  plot for [s in "'"${samples_list}"'"] "'"${mkdup_histograms}"'" using s:xtic(1) with lines linewidth 3'
+  
+  # Plotting
+  "${gnuplot}" <<< "${gpl_script}"
+  
+  # Progress report
+  echo "Made summary table and plot for picard mkdup histograms"
 
-# ------------------- Make plot ------------------- #
+fi
 
-# Parameters
-plot_file="${picard_summary_folder}/r02_picard_mkdup_histograms.png"
-title="${project} ${library} ${lane}: mkdup histograms"
-ylabel="Multiples of output"
-xlabel="Multiples of sequencing"
+# Omit plotting picard mkdup histograms for SE data
+if [ "${data_type}" == "se" ]
+then
 
-# Change new lines to spaces (required for gnuplot)
-samples_list=$(echo ${samples})
+  # Progress report
+  echo "Omitted picard mkdup histograms for se data"
 
-# Gnuplot script
-gpl_script='
-set terminal png font "'"${LiberationSansRegularTTF}"'" size 800,600 noenhanced
-set xtics rotate out
-unset key
-set title "'"${title}"'"
-set ylabel "'"${ylabel}"'"
-set xlabel "'"${xlabel}"'"
-set output "'"${plot_file}"'"
-plot for [s in "'"${samples_list}"'"] "'"${mkdup_histograms}"'" using s:xtic(1) with lines linewidth 3'
-
-# Plotting
-"${gnuplot}" <<< "${gpl_script}"
-
-# Progress report
-echo "Made summary table and plot for picard mkdup histograms"
+fi
 
 # ------------------------------------------------- #
 #                Picard insert sizes                #
 # ------------------------------------------------- #
 
+# For PE data
+if [ "${data_type}" == "pe" ]
+then
 
-# --------------- Make summary table ---------------#
-
-# Make header
-inserts_summary="${picard_summary_folder}/r03_picard_inserts_summary.txt"
-header="MEDIAN_INSERT_SIZE	MEDIAN_ABSOLUTE_DEVIATION	MIN_INSERT_SIZE	MAX_INSERT_SIZE	MEAN_INSERT_SIZE	STANDARD_DEVIATION	READ_PAIRS	PAIR_ORIENTATION	WIDTH_OF_10_PERCENT	WIDTH_OF_20_PERCENT	WIDTH_OF_30_PERCENT	WIDTH_OF_40_PERCENT	WIDTH_OF_50_PERCENT	WIDTH_OF_60_PERCENT	WIDTH_OF_70_PERCENT	WIDTH_OF_80_PERCENT	WIDTH_OF_90_PERCENT	WIDTH_OF_99_PERCENT	SAMPLE	LIBRARY	READ_GROUP"
-echo -e "SAMPLE\t${header}" > "${inserts_summary}" 
-
-# Collect data
-for sample in $samples
-do
-
-  # Stats file name
-  stats_file="${picard_inserts_folder}/${sample}_insert_sizes.txt"
+  # --------------- Make summary table ---------------#
   
-  # Get stats
-  stats=$(awk '/^MEDIAN_INSERT_SIZE/{getline; print}' "${stats_file}")
-
-  # Add stats to the file
-  echo -e "${sample}\t${stats}" >> "${inserts_summary}"
+  # Make header
+  inserts_summary="${picard_summary_folder}/r03_picard_inserts_summary.txt"
+  header="MEDIAN_INSERT_SIZE	MEDIAN_ABSOLUTE_DEVIATION	MIN_INSERT_SIZE	MAX_INSERT_SIZE	MEAN_INSERT_SIZE	STANDARD_DEVIATION	READ_PAIRS	PAIR_ORIENTATION	WIDTH_OF_10_PERCENT	WIDTH_OF_20_PERCENT	WIDTH_OF_30_PERCENT	WIDTH_OF_40_PERCENT	WIDTH_OF_50_PERCENT	WIDTH_OF_60_PERCENT	WIDTH_OF_70_PERCENT	WIDTH_OF_80_PERCENT	WIDTH_OF_90_PERCENT	WIDTH_OF_99_PERCENT	SAMPLE	LIBRARY	READ_GROUP"
+  echo -e "SAMPLE\t${header}" > "${inserts_summary}" 
   
-done
+  # Collect data
+  for sample in $samples
+  do
+  
+    # Stats file name
+    stats_file="${picard_inserts_folder}/${sample}_insert_sizes.txt"
+    
+    # Get stats
+    stats=$(awk '/^MEDIAN_INSERT_SIZE/{getline; print}' "${stats_file}")
+  
+    # Add stats to the file
+    echo -e "${sample}\t${stats}" >> "${inserts_summary}"
+    
+  done
+  
+  # ------------------- Make plot ------------------- #
+  
+  # Parameters
+  plot_file="${picard_summary_folder}/r03_picard_inserts_summary.png"
+  title="${project} ${library} ${lane}: Inserts sizes"
+  ylabel="Base pairs"
+  
+  # Gnuplot script
+  gpl_script='
+  set terminal png font "'"${LiberationSansRegularTTF}"'" size 800,600 noenhanced
+  set style data histogram
+  set style fill solid border
+  set yrange [0:] 
+  set xtics rotate out
+  unset key
+  set title "'"${title}"'"
+  set ylabel "'"${ylabel}"'"
+  set output "'"${plot_file}"'"
+  plot "'"${inserts_summary}"'" using "'"MEDIAN_INSERT_SIZE"'":xtic(1)'
+  
+  # Plotting
+  "${gnuplot}" <<< "${gpl_script}"
+  
+  # Progress report
+  echo "Made summary table and plot for picard insert sizes"
 
-# ------------------- Make plot ------------------- #
+fi
 
-# Parameters
-plot_file="${picard_summary_folder}/r03_picard_inserts_summary.png"
-title="${project} ${library} ${lane}: Inserts sizes"
-ylabel="Base pairs"
+# Omit plotting insert sizes for SE data
+if [ "${data_type}" == "se" ]
+then
 
-# Gnuplot script
-gpl_script='
-set terminal png font "'"${LiberationSansRegularTTF}"'" size 800,600 noenhanced
-set style data histogram
-set style fill solid border
-set yrange [0:] 
-set xtics rotate out
-unset key
-set title "'"${title}"'"
-set ylabel "'"${ylabel}"'"
-set output "'"${plot_file}"'"
-plot "'"${inserts_summary}"'" using "'"MEDIAN_INSERT_SIZE"'":xtic(1)'
+  # Progress report
+  echo "Omitted plotting insert sizes for se data"
 
-# Plotting
-"${gnuplot}" <<< "${gpl_script}"
-
-# Progress report
-echo "Made summary table and plot for picard insert sizes"
+fi
 
 # ------------------------------------------------- #
 #         Picard alignment summary metrics          #
@@ -288,16 +316,25 @@ picard_as_metrics="${picard_summary_folder}/r04_picard_alignment_metrics.txt"
 header="CATEGORY	TOTAL_READS	PF_READS	PCT_PF_READS	PF_NOISE_READS	PF_READS_ALIGNED	PCT_PF_READS_ALIGNED	PF_ALIGNED_BASES	PF_HQ_ALIGNED_READS	PF_HQ_ALIGNED_BASES	PF_HQ_ALIGNED_Q20_BASES	PF_HQ_MEDIAN_MISMATCHES	PF_MISMATCH_RATE	PF_HQ_ERROR_RATE	PF_INDEL_RATE	MEAN_READ_LENGTH	READS_ALIGNED_IN_PAIRS	PCT_READS_ALIGNED_IN_PAIRS	BAD_CYCLES	STRAND_BALANCE	PCT_CHIMERAS	PCT_ADAPTER	SAMPLE	LIBRARY	READ_GROUP"
 echo -e "SAMPLE\t${header}" > "${picard_as_metrics}" 
 
+# Set data to plot for se data
+data_to_plot="UNPAIRED" 
+
+# Set data to plot for pe data
+if [ "${data_type}" == "pe" ]
+then
+    data_to_plot="PAIR"
+fi
+
 # Collect data
 for sample in $samples
 do
-
+  
   # Stats file name
   stats_file="${picard_alignment_folder}/${sample}_as_metrics.txt"
   
   # Get stats
-  stats=$(grep "^PAIR" "${stats_file}")
-
+  stats=$(grep "^${data_to_plot}" "${stats_file}")
+  
   # Add stats to the file
   echo -e "${sample}\t${stats}" >> "${picard_as_metrics}"
   
@@ -354,7 +391,7 @@ do
   stats_file="${picard_hybridisation_folder}/${sample}_hs_metrics.txt"
   
   # Get stats
-  stats=$(grep "^Nexera_Rapid_Capture_Exome" "${stats_file}")
+  stats=$(grep "^${bait_set_name}" "${stats_file}")
 
   # Add stats to the file
   echo -e "${sample}\t${stats}" >> "${picard_hs_metrics}"
@@ -512,7 +549,7 @@ echo "" >> "${pipeline_log}"
 echo "Started saving results to NAS"
 
 # Prepare environment for rsync
-ssh "${results_server}" "mkdir -p ${results_folder}/${project}/${library}"
+ssh -x "${results_server}" "mkdir -p ${results_folder}/${project}/${library}"
 
 # Copy results
 rsync -thrve "ssh -x" "${lane_folder}" "${results_server}:${results_folder}/${project}/${library}/"
@@ -537,9 +574,9 @@ echo "" >> "${pipeline_log}"
 
 # Change ownership (to allow user manipulating files later w/o administrative priveleges)
 ssh -x "${results_server}" "chown -R ${mgqnap_user}:${mgqnap_group} ${results_folder}/${project}/${library}/${lane}"
-ssh -x "${results_server}" "chown -R ${mgqnap_user}:${mgqnap_group} ${results_folder}/${project}/${library}" # just in case...
-ssh -x "${results_server}" "chown -R ${mgqnap_user}:${mgqnap_group} ${results_folder}/${project}" # just in case...
-ssh -x "${results_server}" "chown -R ${mgqnap_user}:${mgqnap_group} ${results_folder}" # just in case...
+#ssh -x "${results_server}" "chown -R ${mgqnap_user}:${mgqnap_group} ${results_folder}/${project}/${library}" # just in case...
+#ssh -x "${results_server}" "chown -R ${mgqnap_user}:${mgqnap_group} ${results_folder}/${project}" # just in case...
+#ssh -x "${results_server}" "chown -R ${mgqnap_user}:${mgqnap_group} ${results_folder}" # just in case...
 
 # Progress messages
 echo "Updated user name and group"
@@ -556,9 +593,10 @@ echo "" >> "${pipeline_log}"
 scp -qp "${logs_folder}/s03_summarise_and_save.log" "${results_server}:${results_folder}/${project}/${library}/${lane}/f00_logs/s03_summarise_and_save.log"
 scp -qp "${pipeline_log}" "${results_server}:${results_folder}/${project}/${library}/${lane}/f00_logs/a00_pipeline_${project}_${library}_${lane}.log" 
 
-# Remove results from cluster 
-rm -fr "${lane_folder}"
+# Remove bulk results from cluster 
+rm -fr "${source_fastq_folder}"
+rm -fr "${bam_folder}"
 
 # Update logs on NAS
-ssh -x "${results_server}" "echo \"Removed data from cluster\" >> ${results_folder}/${project}/${library}/${lane}/f00_logs/s03_summarise_and_save.log"
-ssh -x "${results_server}" "echo \"Removed data from cluster\" >> ${results_folder}/${project}/${library}/${lane}/f00_logs/a00_pipeline_${project}_${library}_${lane}.log"
+ssh -x "${results_server}" "echo \"Removed bulk data from cluster\" >> ${results_folder}/${project}/${library}/${lane}/f00_logs/s03_summarise_and_save.log"
+ssh -x "${results_server}" "echo \"Removed bulk data from cluster\" >> ${results_folder}/${project}/${library}/${lane}/f00_logs/a00_pipeline_${project}_${library}_${lane}.log"

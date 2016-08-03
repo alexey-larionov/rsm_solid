@@ -115,6 +115,7 @@ then
 
 # se data
 elif [ "${data_type}" == "se" ]
+then
 
   while read sample_id fastq md5
   do
@@ -174,7 +175,7 @@ do
          "${logs_folder}" \
          "${scripts_folder}" \
          "${pipeline_log}" \
-         "${data_type}" &
+         "${data_type}"
   
   # Progress report
   echo "${sample}"

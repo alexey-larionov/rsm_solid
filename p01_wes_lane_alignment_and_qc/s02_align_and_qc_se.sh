@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-# s02_align_and_qc_pe.sh
+# s02_align_and_qc_se.sh
 # Wes sample alignment and QC
-# Alexey Larionov, 31Jul2016
+# Alexey Larionov, 01aug2016
 
 # Read parameters
 sample="${1}"
@@ -39,54 +39,63 @@ echo "Started FastQC before trimming"
 # Get samples file
 samples_file="${source_fastq_folder}/samples.txt"
 
-# Get names of fastq files
-fastq_1=$(awk -v s="${sample}" '$1==s {print $2}' "${samples_file}")
-raw_fastq_1="${source_fastq_folder}/${fastq_1}"
+# Get name of fastq file
+fastq=$(awk -v s="${sample}" '$1==s {print $2}' "${samples_file}")
+raw_fastq="${source_fastq_folder}/${fastq}"
   
-fastq_2=$(awk -v s="${sample}" '$1==s {print $3}' "${samples_file}")
-raw_fastq_2="${source_fastq_folder}/${fastq_2}"
+# FastQC raw fastq
+"${fastqc}" --quiet --noextract -j "${java8}" -o "${fastqc_raw_folder}" "${raw_fastq}"
 
-# FastQC read 1 and read 2 in parallel
-"${fastqc}" --quiet --noextract -j "${java8}" -o "${fastqc_raw_folder}" "${raw_fastq_1}" &
-"${fastqc}" --quiet --noextract -j "${java8}" -o "${fastqc_raw_folder}" "${raw_fastq_2}" &
-
-# Wait for completion of both reads (if pe) and report progress
-wait
+# Progress report
 echo "Completed FastQC before trimming: $(date +%d%b%Y_%H:%M:%S)"
 echo ""
 
-# ------- Trimming fastq files ------- #
+# ------- Trimming fastq file ------- #
 
 # Progress report
-echo "Started trimming fastq files"
+echo "Started trimming fastq file"
 
 # File names
-trimmed_fastq_1="${trimmed_fastq_folder}/${fastq_1/.fq.gz/_trim.fq.gz}"
-trimmed_fastq_2="${trimmed_fastq_folder}/${fastq_2/.fq.gz/_trim.fq.gz}"
+trimmed_fastq="${trimmed_fastq_folder}/${fastq/.fq.gz/_trim.fq.gz}"
 trimming_log="${trimmed_fastq_folder}/${sample}_trimming.log"
 
 # Submit sample to cutadapt
 if [ "${cutadapt_remove_adapters}" == "yes" ] || [ "${cutadapt_remove_adapters}" == "Yes" ]
 then
 
+  # SE fastqs obtained from SRA-tools followed by fastq-fixing
+  # may include mix of 1st and 2nd reads.  Hence, I try to cut both adapters. 
+  
+  # Compile name for an intermediate trimmed file
+  trimmed_fastq_1="${trimmed_fastq_folder}/${fastq/.fq.gz/_trim1.fq.gz}"
+
+  # Attempt to trim the 1st adapter
   "${cutadapt}" \
     -q "${cutadapt_trim_qual}","${cutadapt_trim_qual}" \
     -m "${cutadapt_min_len}" \
     -a "${cutadapt_adapter_1}" \
-    -A "${cutadapt_adapter_2}" \
     -o "${trimmed_fastq_1}" \
-    -p "${trimmed_fastq_2}" \
-    "${raw_fastq_1}" "${raw_fastq_2}" > "${trimming_log}"
-    
+    "${raw_fastq}" > "${trimming_log}"
+
+  # Attempt to trim the 2nd adapter
+  "${cutadapt}" \
+    -q "${cutadapt_trim_qual}","${cutadapt_trim_qual}" \
+    -m "${cutadapt_min_len}" \
+    -a "${cutadapt_adapter_2}" \
+    -o "${trimmed_fastq}" \
+    "${trimmed_fastq_1}" > "${trimming_log}"
+
+  # Remove the intermediate trimmed file
+  rm "${trimmed_fastq_1}"
+
 elif [ "${cutadapt_remove_adapters}" == "no" ] || [ "${cutadapt_remove_adapters}" == "No" ]
 then 
 
   "${cutadapt}" \
     -q "${cutadapt_trim_qual}","${cutadapt_trim_qual}" \
     -m "${cutadapt_min_len}" \
-    -o "${trimmed_fastq_1}" \
-    -p "${trimmed_fastq_2}" \
-    "${raw_fastq_1}" "${raw_fastq_2}" > "${trimming_log}"
+    -o "${trimmed_fastq}" \
+    "${raw_fastq}" > "${trimming_log}"
 
 else
   echo "Wrong cutadapt_remove_adapters settings:"
@@ -100,7 +109,7 @@ else
 fi
 
 # Progress report
-echo "Completed trimming of fastq files: $(date +%d%b%Y_%H:%M:%S)"
+echo "Completed trimming of fastq file: $(date +%d%b%Y_%H:%M:%S)"
 echo ""
 
 # ------- FastQC after trimming ------- #
@@ -108,12 +117,10 @@ echo ""
 # Progress report
 echo "Started FastQC after trimming"
 
-# FastQC read 1 and read 2 in parallel
-"${fastqc}" --quiet --noextract -j "${java8}" -o "${fastqc_trimmed_folder}" "${trimmed_fastq_1}" &
-"${fastqc}" --quiet --noextract -j "${java8}" -o "${fastqc_trimmed_folder}" "${trimmed_fastq_2}" &
+# FastQC trimmed fastq
+"${fastqc}" --quiet --noextract -j "${java8}" -o "${fastqc_trimmed_folder}" "${trimmed_fastq}"
 
-# Wait for completion of both reads and report progress
-wait
+# Progress report
 echo "Completed FastQC after trimming: $(date +%d%b%Y_%H:%M:%S)"
 echo ""
 
@@ -131,41 +138,31 @@ alignment_log="${bam_folder}/${alignment_log}"
 
 # Submit sample for alignment and immediately 
 # convert outputted SAM to BAM (using samtools)
-
 if [ "${bwa_algorithm}" == "mem" ]
 then
 
   "${bwa}" mem -M -t 14 "${bwa_index}" \
-    "${trimmed_fastq_1}" "${trimmed_fastq_2}" 2> "${alignment_log}" | \
+    "${trimmed_fastq}" 2> "${alignment_log}" | \
     "${samtools}" view -b - > "${raw_bam}"
 
   # Options:
-  # -M  Mark shorter split hits as secondary (for Picard compatibility)
   # -t  Number of threads
+  # -M  Mark shorter split hits as secondary (for Picard compatibility)
 
 elif [ "${bwa_algorithm}" == "backtrack" ]
 then 
 
-  read1_sai="${sample}_${lane}_r1.sai"
-  read1_sai="${bam_folder}/${read1_sai}"
+  sai="${sample}_${lane}.sai"
+  sai="${bam_folder}/${sai}"
 
-  read2_sai="${sample}_${lane}_r2.sai"
-  read2_sai="${bam_folder}/${read2_sai}"
-
-  "${bwa}" aln -t 14 "${ref_genome}" "${trimmed_fastq_1}" > "${read1_sai}" 2> "${alignment_log}"
+  "${bwa}" aln -t 14 "${ref_genome}" "${trimmed_fastq}" > "${sai}" 2> "${alignment_log}"
   
   echo "" >> "${alignment_log}"
   echo "=================================================================" >> "${alignment_log}"
   echo "" >> "${alignment_log}"
-  
-  "${bwa}" aln -t 14 "${ref_genome}" "${trimmed_fastq_2}" > "${read2_sai}" 2>> "${alignment_log}"
 
-  echo "" >> "${alignment_log}"
-  echo "=================================================================" >> "${alignment_log}"
-  echo "" >> "${alignment_log}"
-  
-  "${bwa}" sampe -P "${ref_genome}" \
-    "${read1_sai}" "${read2_sai}" "${trimmed_fastq_1}" "${trimmed_fastq_2}" 2>> "${alignment_log}" | \
+  "${bwa}" samse "${ref_genome}" \
+    "${sai}" "${trimmed_fastq}" 2>> "${alignment_log}" | \
     "${samtools}" view -b - > "${raw_bam}" 
 
   # Notes:
@@ -177,10 +174,10 @@ then
   # bwa index files should be located within the folder with reference. 
   
   # -t  Number of threads
-  # -P  Load the entire FM-index into memory to reduce disk operations
+  # -P  Load the entire FM-index into memory to reduce disk operations - is not supported by samse
 
-  rm "${read1_sai}" "${read2_sai}"
-  
+  rm "${sai}"
+
 else
   echo "Wrong bwa_algorithm settings:"
   echo "${bwa_algorithm}"
@@ -193,7 +190,7 @@ else
 fi
 
 # Remove trimmed fastq
-rm -f "${trimmed_fastq_1}" "${trimmed_fastq_2}"
+rm -f "${trimmed_fastq}"
 
 # Progress report
 echo "Completed alignment: $(date +%d%b%Y_%H:%M:%S)"
@@ -286,13 +283,16 @@ echo ""
 
 # ------- FixBAMFile ------- #
 # Fixing Bin field errors 
-# ERROR: bin field of BAM record does not equal value computed based on 
-# alignment start and end, and length of sequence to which read is aligned
+
+# Error: 
+# "bin field of BAM record does not equal value computed based on 
+# alignment start and end, and length of sequence to which read is aligned"
 # http://gatkforums.broadinstitute.org/gatk/discussion/4290/sam-bin-field-error-for-the-gatk-run
-# Solution: htsjdk.samtools.FixBAMFile - as used below
+
+# Solution: 
+# htsjdk.samtools.FixBAMFile - as used below
 # https://sourceforge.net/p/samtools/mailman/message/31853465/
 # https://github.com/samtools/htsjdk/blob/master/src/main/java/htsjdk/samtools/FixBAMFile.java
-#
 
 # Progress report
 echo "Started fixing bam bins field errors"
@@ -420,22 +420,8 @@ echo ""
 # ------- Collect inserts sizes ------- #
 
 # Progress report
-echo "Started collecting inserts sizes"
-
-# Stats files names
-inserts_stats="${picard_inserts_folder}/${sample}_insert_sizes.txt"
-inserts_plot="${picard_inserts_folder}/${sample}_insert_sizes.pdf"
-
-# Process sample
-"${java6}" -Xmx20g -jar "${picard}" CollectInsertSizeMetrics \
-  INPUT="${mkdup_bam}" \
-  OUTPUT="${inserts_stats}" \
-  HISTOGRAM_FILE="${inserts_plot}" \
-  VERBOSITY=ERROR \
-  QUIET=true &
-
-# .. in parallel with other stats started after this .. hence akward Xmx20
-# add R to path ... 
+echo "Omitted collecting inserts sizes for se data"
+echo ""
 
 # ------- Collect alignment summary metrics ------- #
 

@@ -98,6 +98,9 @@ PATH="${samtools_folder}:${PATH}" # samstat needs samtools in the PATH
 picard=$(get_parameter "picard") # e.g. picard/picard-tools-1.133/picard.jar
 picard="${tools_folder}/${picard}"
 
+htsjdk=$(get_parameter "htsjdk") # e.g. picard/picard-tools-1.133/htsjdk-1.133.jar
+htsjdk="${tools_folder}/${htsjdk}"
+
 r_folder=$(get_parameter "r_folder") # e.g. r/R-3.2.0/bin
 r_folder="${tools_folder}/${r_folder}"
 PATH="${r_folder}:${PATH}" # picard, GATK and Qualimap need R in the PATH
@@ -146,9 +149,6 @@ logs_folder="${lane_folder}/${logs_folder}"
 
 source_fastq_folder=$(get_parameter "source_fastq_folder") # e.g. f01_source_fastq
 source_fastq_folder="${lane_folder}/${source_fastq_folder}"
-
-renamed_fastq_folder=$(get_parameter "renamed_fastq_folder") # e.g. f02_renamed_fastq
-renamed_fastq_folder="${lane_folder}/${renamed_fastq_folder}"
 
 fastqc_raw_folder=$(get_parameter "fastqc_raw_folder") # e.g. f02_fastq_stats/f01_fastqc_raw
 fastqc_raw_folder="${lane_folder}/${fastqc_raw_folder}"

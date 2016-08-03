@@ -59,7 +59,7 @@ echo " ------------------ Output ------------------ "
 echo ""
 
 # Log file
-sample_log="${logs_folder}/s02_align_and_qc_${sample}.log"
+sample_log="${logs_folder}/s02_align_and_qc_${sample}_${data_type}.log"
 
 # pe data
 if [ "${data_type}" == "pe" ]
@@ -68,7 +68,8 @@ then
          "${sample}" \
          "${job_file}" \
          "${scripts_folder}" \
-         "${pipeline_log}" &> "${sample_log}"
+         "${pipeline_log}" \
+         "${data_type}" &> "${sample_log}"
 fi
 
 # se data
@@ -78,5 +79,6 @@ then
          "${sample}" \
          "${job_file}" \
          "${scripts_folder}" \
-         "${pipeline_log}" &> "${sample_log}"
+         "${pipeline_log}" \
+         "${data_type}" &> "${sample_log}"
 fi

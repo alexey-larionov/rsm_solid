@@ -4,7 +4,7 @@
 ## Collect and plot summary metrics for wes lane alignment and QC
 ## Move data from HPC to NAS
 ## SLURM submission script
-## Alexey Larionov, 27Jul2016
+## Alexey Larionov, 02Aug2016
 
 ## Name of the job:
 #SBATCH -J summarise_and_save
@@ -27,6 +27,9 @@
 
 ## Partition (do not change)
 #SBATCH -p sandybridge
+
+## Jump the queue
+##SBATCH --qos=INTR
 
 ## Modules section (required, do not remove)
 ## Can be modified to set the environment seen by the application
